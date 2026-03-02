@@ -1,3 +1,4 @@
+cat > length.py << 'EOF'
 import argparse
 import os
 import pandas as pd
@@ -10,22 +11,16 @@ def parse_args():
 
 def main():
     args = parse_args()
-
     files = [os.path.join(args.data, f) for f in os.listdir(args.data) if f.endswith(".parquet")]
     df = pd.concat([pd.read_parquet(f) for f in files], ignore_index=True)
     print(f"Loaded {len(df)} rows")
-
-    # Compute length features
     df["review_length_words"] = df["reviewText"].apply(lambda x: len(str(x).split()))
     df["review_length_chars"] = df["reviewText"].apply(lambda x: len(str(x)))
-
-    # Keep only keys + new features
     output_df = df[["asin", "reviewerID", "review_length_words", "review_length_chars"]]
-
     os.makedirs(args.out, exist_ok=True)
     output_df.to_parquet(os.path.join(args.out, "data.parquet"), index=False)
     print("Length features done.")
-    print(output_df.head())
 
 if __name__ == "__main__":
     main()
+EOF
