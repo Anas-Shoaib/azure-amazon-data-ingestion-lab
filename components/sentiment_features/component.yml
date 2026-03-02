@@ -1,23 +1,19 @@
 $schema: https://azuremlschemas.azureedge.net/latest/commandComponent.schema.json
 name: sentiment_features
+version: 2
 display_name: Sentiment Features
-version: 1
 type: command
-
 inputs:
   data:
     type: uri_folder
-
 outputs:
   out:
     type: uri_folder
-
 code: .
 command: >-
+  pip install nltk --quiet &&
+  python -c "import nltk; nltk.download('vader_lexicon')" &&
   python sentiment.py
   --data ${{inputs.data}}
   --out ${{outputs.out}}
-
-environment:
-  conda_file: conda.yml
-  image: mcr.microsoft.com/azureml/openmpi4.1.0-ubuntu20.04
+environment: azureml:AzureML-sklearn-1.1-ubuntu20.04-py38-cpu@latest
