@@ -372,3 +372,253 @@ curated/
 
 ## Result
 The Amazon Electronics reviews data was successfully preprocessed, enriched, and curated into a Gold-layer dataset using Azure Databricks and a three-stage ETL pipeline. The pipeline is orchestrated as a Databricks Job, making it reproducible and schedulable for production use.
+
+# Lab 4 – Text Feature Engineering with Azure ML
+
+## Overview
+This lab transforms raw Amazon Electronics review text into machine-learning-ready numerical features using Azure ML Pipelines. The engineered features are registered in the Azure ML Feature Store for reuse in downstream modeling labs.
+
+---
+
+## Repository Structure
+```
+├── components/
+│   ├── split_dataset/
+│   │   ├── split.py
+│   │   └── component.yml
+│   ├── normalize_text/
+│   │   ├── normalize.py
+│   │   └── component.yml
+│   ├── length_features/
+│   │   ├── length.py
+│   │   └── component.yml
+│   ├── sentiment_features/
+│   │   ├── sentiment.py
+│   │   ├── conda.yml
+│   │   └── component.yml
+│   ├── tfidf_features/
+│   │   ├── tfidf.py
+│   │   └── component.yml
+│   ├── sbert_embeddings/
+│   │   ├── sbert.py
+│   │   ├── conda.yml
+│   │   └── component.yml
+│   └── merge_features/
+│       ├── merge.py
+│       └── component.yml
+├── pipelines/
+│   └── feature_pipeline.yml
+├── datastores/
+│   └── curated_adls.yml
+├── feature_store/
+│   ├── entity_amazon_review.yml
+│   ├── FeatureSetSpec.yaml
+│   └── feature_set_amazon_review_text_features.yml
+└── README.md
+```
+
+---
+
+## Part 1 – Exploration, Validation, and Sampling
+
+### Dataset
+The input dataset is the curated Gold layer dataset (`features_v1`) produced in Lab 3, stored in Azure Data Lake Storage. It contains over 20 million Amazon Electronics reviews.
+
+### Validation Steps
+- Verified row count, column count, and schema
+- Confirmed `reviewText` is stored as string
+- Confirmed `overall` (rating) is numeric
+- Confirmed entity columns `asin` and `reviewerID` are present
+- Checked for missing or empty values in key columns
+
+### Visualizations
+**Rating Distribution** – Shows how reviews are distributed across star ratings (1–5). This matters for feature engineering because it reveals class imbalance, which affects how sentiment and TF-IDF features correlate with the target variable.
+
+**Review Length Distribution** – Shows the spread of word counts and character counts across reviews. This matters because very short reviews carry less signal and may need to be filtered out, while extremely long reviews may need truncation for transformer-based models like SBERT.
+
+### Sampling Strategy
+A sample of 300,000 reviews was created using a time-stratified approach to avoid temporal drift. Language evolves over time, and a purely random sample risks over-representing reviews from a single time period. By sampling proportionally across years, the sample remains representative of the full distribution of language usage.
+```python
+sample_n = 300_000
+sample_seed = 42
+df_sampled = df.orderBy("reviewerID").limit(sample_n)
+```
+
+The sampled dataset was written to the Gold layer as `features_v1_sampled`, leaving the original dataset unchanged.
+
+---
+
+## Part 2 – Azure ML Feature Engineering Pipeline
+
+### Pipeline Overview
+The feature engineering pipeline reads the sampled Gold dataset, splits it to avoid data leakage, applies text normalization and feature extraction, and produces a versioned merged feature dataset registered in the Azure ML Feature Store.
+```
+sampled_data
+     │
+  split (70/15/15)
+     │
+  ┌──┴──────────────┐
+normalize_train  normalize_val  normalize_test
+     │
+  ┌──┼──────────────┐
+length  sentiment  tfidf  sbert
+     │
+  merge_all
+```
+
+---
+
+## Components
+
+### 1. split_dataset
+**What it does:** Splits the sampled dataset into train (70%), validation (15%), and test (15%) sets using stratified random splitting.
+
+**Why it must happen first:** Splitting before any feature fitting is critical to prevent data leakage. If TF-IDF or any scaler is fit on the full dataset before splitting, information from the validation and test sets leaks into the training process, producing artificially inflated evaluation metrics.
+
+**Key parameters:**
+- `train_ratio`: 0.7
+- `val_ratio`: 0.15
+- `seed`: 42 for reproducibility
+
+---
+
+### 2. normalize_text
+**What it does:** Cleans and standardizes raw review text before feature extraction.
+
+**Operations performed:**
+- Lowercases all text
+- Removes URLs using regex (`http\S+|www\S+`)
+- Replaces numbers with the token `NUM` using regex (`\d+`)
+- Removes punctuation
+- Trims extra whitespace
+- Filters out reviews shorter than 10 characters
+
+**Why it matters:** Consistent normalization ensures that TF-IDF and SBERT features are computed on clean, uniform text. Without this step, the same word in different cases ("Great" vs "great") would be treated as different tokens, inflating the vocabulary and reducing feature quality.
+
+---
+
+### 3. length_features
+**What it does:** Computes basic length-based features from the normalized review text.
+
+**Features produced:**
+- `review_length_words` – number of words in the review
+- `review_length_chars` – number of characters in the review
+
+**Why it matters:** Review length is a simple but informative signal. Longer reviews tend to be more detailed and often correlate with moderate ratings (3–4 stars), while very short reviews tend to be more extreme (1 or 5 stars). These features are cheap to compute and add meaningful signal to downstream models.
+
+---
+
+### 4. sentiment_features
+**What it does:** Extracts sentiment polarity scores from the normalized review text using VADER (Valence Aware Dictionary and sEntiment Reasoner).
+
+**Features produced:**
+- `sentiment_pos` – proportion of text with positive sentiment
+- `sentiment_neg` – proportion of text with negative sentiment
+- `sentiment_neu` – proportion of text with neutral sentiment
+- `sentiment_compound` – overall normalized polarity score (−1 = very negative, +1 = very positive)
+
+**Why it matters:** Sentiment scores capture the emotional tone of a review, which is strongly correlated with star ratings. A model using only TF-IDF word counts may miss the overall polarity of a review; sentiment features provide a direct numerical representation of opinion.
+
+**Library used:** `nltk.sentiment.vader` — rule-based, fast, and well-suited for short informal text like product reviews.
+
+---
+
+### 5. tfidf_features
+**What it does:** Converts review text into a high-dimensional numerical matrix using TF-IDF (Term Frequency–Inverse Document Frequency).
+
+**Configuration:**
+- `max_features`: 5000 (top 5000 most informative terms)
+- `stop_words`: English common words removed
+- `ngram_range`: (1, 2) — captures unigrams and bigrams like "not good"
+
+**Critical design decision:** The TF-IDF vectorizer is **fit only on the training split**, then applied (transformed) to the validation and test splits. This prevents vocabulary leakage from the validation and test sets into the feature representation.
+
+**Why it matters:** TF-IDF captures which words and phrases are most informative for distinguishing between reviews. Bigrams like "not good" or "highly recommend" carry more signal than individual words alone.
+
+---
+
+### 6. sbert_embeddings
+**What it does:** Encodes each review into a dense 384-dimensional semantic vector using Sentence-BERT (all-MiniLM-L6-v2).
+
+**Feature produced:**
+- `bert_embedding_0` through `bert_embedding_383` — 384-dimensional contextual embedding vector
+
+**Why it matters:** Unlike TF-IDF which treats words as independent tokens, SBERT captures the semantic meaning of entire sentences. Two reviews saying "this product is amazing" and "I absolutely love this item" would have very similar SBERT embeddings even though they share no words. This deep semantic understanding significantly improves downstream model accuracy.
+
+**Library used:** `sentence-transformers` with the `all-MiniLM-L6-v2` model — lightweight, fast, and well-suited for sentence-level encoding.
+
+---
+
+### 7. merge_features
+**What it does:** Joins all feature datasets on the entity keys (`asin`, `reviewerID`) into a single unified feature dataset.
+
+**Inputs merged:**
+- Length features
+- Sentiment features
+- TF-IDF features (training split)
+- SBERT embedding features
+
+**Output:** A single Parquet file containing all engineered features, ready for Feature Store registration and downstream modeling.
+
+---
+
+## Running the Pipeline
+
+### Prerequisites
+- Azure ML workspace configured
+- Datastore `blobkey` registered pointing to the curated container
+- Data asset `amazon_electronics_features_v1_sampled` registered
+- Compute cluster created
+
+### Register All Components
+```bash
+az ml component create --file components/split_dataset/component.yml
+az ml component create --file components/normalize_text/component.yml
+az ml component create --file components/length_features/component.yml
+az ml component create --file components/sentiment_features/component.yml
+az ml component create --file components/tfidf_features/component.yml
+az ml component create --file components/sbert_embeddings/component.yml
+az ml component create --file components/merge_features/component.yml
+```
+
+### Submit the Pipeline
+```bash
+az ml job create --file pipelines/feature_pipeline.yml
+```
+
+### Monitor
+Go to Azure ML Studio → Jobs → click the running job to see the pipeline graph.
+
+---
+
+## Feature Store
+
+### Entity
+The `AmazonReview` entity is defined by two index columns:
+- `asin` — product identifier
+- `reviewerID` — reviewer identifier
+
+Together these uniquely identify each review in the dataset.
+
+### Registered Feature Set
+**Name:** `amazon_review_text_features`  
+**Version:** 1  
+
+| Feature | Type | Description |
+|---------|------|-------------|
+| review_length_words | Integer | Number of words in the review |
+| review_length_chars | Integer | Number of characters in the review |
+| sentiment_pos | Float | Proportion of positive sentiment |
+| sentiment_neg | Float | Proportion of negative sentiment |
+| sentiment_neu | Float | Proportion of neutral sentiment |
+| sentiment_compound | Float | Overall polarity score (−1 to +1) |
+| tfidf_0 … tfidf_4999 | Float | TF-IDF term weights |
+| bert_embedding_0 … bert_embedding_383 | Float | SBERT semantic embeddings |
+
+---
+
+## Notes
+- Storage account keys should never be committed to GitHub. Use environment variables or Azure Key Vault.
+- The TF-IDF vectorizer must always be fit on training data only to prevent leakage.
+- The SBERT component requires a custom conda environment with `sentence-transformers` and `torch`.
+- The sentiment component requires a custom conda environment with `nltk`.
