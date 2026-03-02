@@ -1,3 +1,4 @@
+cat > split.py << 'EOF'
 import argparse
 import os
 import pandas as pd
@@ -16,40 +17,22 @@ def parse_args():
 
 def main():
     args = parse_args()
-
-    # Load all parquet files in the folder
     files = [os.path.join(args.data, f) for f in os.listdir(args.data) if f.endswith(".parquet")]
     df = pd.concat([pd.read_parquet(f) for f in files], ignore_index=True)
     print(f"Loaded {len(df)} rows")
-
-    # First split: train vs temp
-    train_df, temp_df = train_test_split(
-        df,
-        test_size=(1 - args.train_ratio),
-        random_state=args.seed,
-        shuffle=True
-    )
-
-    # Second split: val vs test
+    train_df, temp_df = train_test_split(df, test_size=(1 - args.train_ratio), random_state=args.seed, shuffle=True)
     val_size = args.val_ratio / (1 - args.train_ratio)
-    val_df, test_df = train_test_split(
-        temp_df,
-        test_size=(1 - val_size),
-        random_state=args.seed,
-        shuffle=True
-    )
-
+    val_df, test_df = train_test_split(temp_df, test_size=(1 - val_size), random_state=args.seed, shuffle=True)
     os.makedirs(args.train_out, exist_ok=True)
     os.makedirs(args.val_out, exist_ok=True)
     os.makedirs(args.test_out, exist_ok=True)
-
     train_df.to_parquet(os.path.join(args.train_out, "data.parquet"), index=False)
     val_df.to_parquet(os.path.join(args.val_out, "data.parquet"), index=False)
     test_df.to_parquet(os.path.join(args.test_out, "data.parquet"), index=False)
-
     print("Train rows:", len(train_df))
     print("Validation rows:", len(val_df))
     print("Test rows:", len(test_df))
 
 if __name__ == "__main__":
     main()
+EOF
