@@ -1,0 +1,10 @@
+name: sentiment_env
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - python=3.8
+  - pip:
+    - pandas
+    - nltk
+    - pyarrow
