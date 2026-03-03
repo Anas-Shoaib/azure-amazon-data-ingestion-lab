@@ -1,0 +1,14 @@
+# AzureML downloads / logs (do not commit)
+merge_out/
+merge_all_logs/
+ts_job_out/
+node_logs/
+merge_job.json
+*.log
+
+# Python cache
+__pycache__/
+*.pyc
+
+# OS junk
+.DS_Store
