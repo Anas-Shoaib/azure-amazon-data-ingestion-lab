@@ -1,0 +1,9 @@
+$schema: http://azureml/sdk-2-0/Featureset.json
+name: amazon_review_text_features
+version: "1"
+description: Length + sentiment + TFIDF + SBERT features from Amazon reviews
+specification:
+  path: ./review_text_features_spec
+entities:
+  - azureml:AmazonReview:1
+stage: Development
