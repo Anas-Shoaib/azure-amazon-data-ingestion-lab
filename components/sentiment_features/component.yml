@@ -3,17 +3,22 @@ name: sentiment_features
 version: 2
 display_name: Sentiment Features
 type: command
+
 inputs:
   data:
     type: uri_folder
+
 outputs:
   out:
     type: uri_folder
+
 code: .
 command: >-
+  pip install pyarrow --quiet &&
   pip install nltk --quiet &&
-  python -c "import nltk; nltk.download('vader_lexicon')" &&
+  python -c "import nltk; nltk.download('vader_lexicon', quiet=True)" &&
   python sentiment.py
   --data ${{inputs.data}}
   --out ${{outputs.out}}
+
 environment: azureml:AzureML-sklearn-1.1-ubuntu20.04-py38-cpu@latest
