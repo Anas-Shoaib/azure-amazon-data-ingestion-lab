@@ -10,43 +10,43 @@ inputs:
 jobs:
   split:
     type: command
-    component: azureml:split_dataset:2
+    component: azureml:split_dataset:@latest
     inputs:
       data: ${{parent.inputs.sampled_data}}
 
   normalize_train:
     type: command
-    component: azureml:normalize_text:2
+    component: azureml:normalize_text:@latest
     inputs:
       data: ${{parent.jobs.split.outputs.train}}
 
   normalize_val:
     type: command
-    component: azureml:normalize_text:2
+    component: azureml:normalize_text:@latest
     inputs:
       data: ${{parent.jobs.split.outputs.val}}
 
   normalize_test:
     type: command
-    component: azureml:normalize_text:2
+    component: azureml:normalize_text:@latest
     inputs:
       data: ${{parent.jobs.split.outputs.test}}
 
   length_train:
     type: command
-    component: azureml:length_features:2
+    component: azureml:length_features:@latest
     inputs:
       data: ${{parent.jobs.normalize_train.outputs.out}}
 
   sentiment_train:
     type: command
-    component: azureml:sentiment_features:2
+    component: azureml:sentiment_features:@latest
     inputs:
       data: ${{parent.jobs.normalize_train.outputs.out}}
 
   tfidf:
     type: command
-    component: azureml:tfidf_features:5
+    component: azureml:tfidf_features:@latest
     inputs:
       train: ${{parent.jobs.normalize_train.outputs.out}}
       val: ${{parent.jobs.normalize_val.outputs.out}}
@@ -55,14 +55,14 @@ jobs:
 
   sbert_train:
     type: command
-    component: azureml:sbert_embeddings:2
+    component: azureml:sbert_embeddings:@latest
     inputs:
       data: ${{parent.jobs.normalize_train.outputs.out}}
 
   merge_all:
     type: command
     compute: azureml:mergeOnlyCompute
-    component: azureml:merge_features:3
+    component: azureml:merge_features:@latest
     inputs:
       length: ${{parent.jobs.length_train.outputs.out}}
       sentiment: ${{parent.jobs.sentiment_train.outputs.out}}
