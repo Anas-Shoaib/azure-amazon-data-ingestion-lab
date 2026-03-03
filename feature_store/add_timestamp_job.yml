@@ -1,0 +1,23 @@
+$schema: https://azuremlschemas.azureedge.net/latest/commandJob.schema.json
+type: command
+display_name: add_timestamp_to_merged_features
+compute: azureml:lab4-cluster
+
+inputs:
+  data:
+    type: uri_folder
+    path: azureml:final_merged_features:1
+
+outputs:
+  out:
+    type: uri_folder
+
+# This YAML lives in feature_store/, so code must be "."
+code: .
+environment: azureml:AzureML-sklearn-1.1-ubuntu20.04-py38-cpu@latest
+
+command: >-
+  pip install pyarrow --quiet &&
+  python add_timestamp.py
+  --data ${{inputs.data}}
+  --out ${{outputs.out}}
