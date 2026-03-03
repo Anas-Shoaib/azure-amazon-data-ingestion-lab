@@ -1,6 +1,6 @@
 $schema: https://azuremlschemas.azureedge.net/latest/commandComponent.schema.json
 name: merge_features
-version: 2
+version: 3
 display_name: Merge Features
 type: command
 
@@ -20,7 +20,6 @@ outputs:
 
 code: .
 command: >-
-  pip install pyarrow --quiet &&
   python merge.py
   --length ${{inputs.length}}
   --sentiment ${{inputs.sentiment}}
