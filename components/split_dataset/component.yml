@@ -1,9 +1,9 @@
-# split_dataset - version 2
 $schema: https://azuremlschemas.azureedge.net/latest/commandComponent.schema.json
 name: split_dataset
 version: 2
 display_name: Split Dataset (Train/Val/Test)
 type: command
+
 inputs:
   data:
     type: uri_folder
@@ -16,6 +16,7 @@ inputs:
   val_ratio:
     type: number
     default: 0.15
+
 outputs:
   train:
     type: uri_folder
@@ -23,8 +24,10 @@ outputs:
     type: uri_folder
   test:
     type: uri_folder
+
 code: .
 command: >-
+  pip install pyarrow --quiet &&
   python split.py
   --data ${{inputs.data}}
   --seed ${{inputs.seed}}
@@ -33,4 +36,5 @@ command: >-
   --train_out ${{outputs.train}}
   --val_out ${{outputs.val}}
   --test_out ${{outputs.test}}
+
 environment: azureml:AzureML-sklearn-1.1-ubuntu20.04-py38-cpu@latest
