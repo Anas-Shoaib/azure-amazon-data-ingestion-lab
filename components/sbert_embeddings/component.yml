@@ -3,20 +3,25 @@ name: sbert_embeddings
 version: 2
 display_name: SBERT Embeddings
 type: command
+
 inputs:
   data:
     type: uri_folder
   batch_size:
     type: integer
     default: 64
+
 outputs:
   out:
     type: uri_folder
+
 code: .
 command: >-
+  pip install pyarrow --quiet &&
   pip install sentence-transformers --quiet &&
   python sbert.py
   --data ${{inputs.data}}
   --out ${{outputs.out}}
   --batch_size ${{inputs.batch_size}}
+
 environment: azureml:AzureML-sklearn-1.1-ubuntu20.04-py38-cpu@latest
