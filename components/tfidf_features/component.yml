@@ -1,8 +1,9 @@
 $schema: https://azuremlschemas.azureedge.net/latest/commandComponent.schema.json
 name: tfidf_features
-version: 3
+version: 5
 display_name: TF-IDF Features
 type: command
+
 inputs:
   train:
     type: uri_folder
@@ -12,7 +13,8 @@ inputs:
     type: uri_folder
   max_features:
     type: integer
-    default: 5000
+    default: 500
+
 outputs:
   train_out:
     type: uri_folder
@@ -20,8 +22,10 @@ outputs:
     type: uri_folder
   test_out:
     type: uri_folder
+
 code: .
 command: >-
+  pip install pyarrow --quiet &&
   python tfidf.py
   --train ${{inputs.train}}
   --val ${{inputs.val}}
@@ -30,4 +34,5 @@ command: >-
   --val_out ${{outputs.val_out}}
   --test_out ${{outputs.test_out}}
   --max_features ${{inputs.max_features}}
+
 environment: azureml:AzureML-sklearn-1.1-ubuntu20.04-py38-cpu@latest
