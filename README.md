@@ -411,9 +411,13 @@ This lab transforms raw Amazon Electronics review text into machine-learning-rea
 ├── datastores/
 │   └── curated_adls.yml
 ├── feature_store/
+│   ├── add_timestamp.py
+│   ├── add_timestamp_job.yml
 │   ├── entity_amazon_review.yml
-│   ├── FeatureSetSpec.yaml
-│   └── feature_set_amazon_review_text_features.yml
+│   ├── feature_set_amazon_review_text_features.yml
+│   └── review_text_features_spec/
+│       ├── FeatureSetSpec.yaml
+│       └── .amlignore
 └── README.md
 ```
 
@@ -437,7 +441,8 @@ The input dataset is the curated Gold layer dataset (`features_v1`) produced in 
 **Review Length Distribution** – Shows the spread of word counts and character counts across reviews. This matters because very short reviews carry less signal and may need to be filtered out, while extremely long reviews may need truncation for transformer-based models like SBERT.
 
 ### Sampling Strategy
-A sample of 300,000 reviews was created using a time-stratified approach to avoid temporal drift. Language evolves over time, and a purely random sample risks over-representing reviews from a single time period. By sampling proportionally across years, the sample remains representative of the full distribution of language usage.
+A sample of 300,000 reviews was created using a deterministic approach for reproducibility. The dataset was ordered by `reviewerID` and limited to `sample_n`. This keeps sampling consistent across runs, but it may not fully control for temporal (year-to-year) language drift.
+
 ```python
 sample_n = 300_000
 sample_seed = 42
@@ -527,7 +532,7 @@ length  sentiment  tfidf  sbert
 **What it does:** Converts review text into a high-dimensional numerical matrix using TF-IDF (Term Frequency–Inverse Document Frequency).
 
 **Configuration:**
-- `max_features`: 5000 (top 5000 most informative terms)
+- `max_features`: 500 (top 500 most informative terms)
 - `stop_words`: English common words removed
 - `ngram_range`: (1, 2) — captures unigrams and bigrams like "not good"
 
@@ -567,8 +572,8 @@ length  sentiment  tfidf  sbert
 ### Prerequisites
 - Azure ML workspace configured
 - Datastore `blobkey` registered pointing to the curated container
-- Data asset `amazon_electronics_features_v1_sampled` registered
-- Compute cluster created
+- Data asset `amazon_electronics_features_v1_sampled_ds` registered
+- Compute clusters created (`lab4-cluster` and `mergeOnlyCompute`)
 
 ### Register All Components
 ```bash
@@ -612,13 +617,22 @@ Together these uniquely identify each review in the dataset.
 | sentiment_neg | Float | Proportion of negative sentiment |
 | sentiment_neu | Float | Proportion of neutral sentiment |
 | sentiment_compound | Float | Overall polarity score (−1 to +1) |
-| tfidf_0 … tfidf_4999 | Float | TF-IDF term weights |
+| tfidf_0 … tfidf_499 | Float | TF-IDF term weights |
 | bert_embedding_0 … bert_embedding_383 | Float | SBERT semantic embeddings |
 
 ---
 
+## Challenges Faced (Lab 4)
+
+- **Dataset access / streaming permission errors:** The pipeline initially failed with a `ScriptExecution.StreamAccess.Authentication` error when trying to mount the input dataset. This was resolved by using the workspace-managed datastore-backed dataset asset (`amazon_electronics_features_v1_sampled_ds`) to avoid permission issues.
+
+- **Merge step memory explosion:** The `merge_all` step failed with a `MemoryError` due to an unintended many-to-many merge that caused massive row expansion. The issue was fixed by enforcing uniqueness on the merge keys (`asin`, `reviewerID`) using `drop_duplicates()` before merging and using `validate="one_to_one"` to prevent silent merge explosions.
+
+- **Feature Store timestamp requirement:** Feature set creation failed because parquet sources require a `timestamp_column`. The engineered feature dataset did not originally include a timestamp column, so an additional step was used to add `event_timestamp`, and the FeatureSetSpec was updated to include `timestamp_column: event_timestamp`.
+
+- **YAML path and version reference mistakes:** Several errors were caused by incorrect relative paths (e.g., `feature_store/feature_store/...`) and confusion between AzureML component labels vs numeric versions (e.g., `@latest` vs `:3`). These were corrected by using correct relative paths and pinning component versions properly.
+
 ## Notes
 - Storage account keys should never be committed to GitHub. Use environment variables or Azure Key Vault.
 - The TF-IDF vectorizer must always be fit on training data only to prevent leakage.
-- The SBERT component requires a custom conda environment with `sentence-transformers` and `torch`.
-- The sentiment component requires a custom conda environment with `nltk`.
+- SBERT and Sentiment feature extraction require additional Python packages (installed via pip in the component command or via a custom environment if needed).
