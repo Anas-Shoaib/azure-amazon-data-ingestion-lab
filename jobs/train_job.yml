@@ -16,13 +16,13 @@ command: >
 inputs:
   train_data:
     type: uri_folder
-    path: azureml:amazon_review_merged_features_train@latest
+    path: azureml://datastores/workspaceblobstore/paths/azureml/190c5ce8-380c-46c5-8427-02dd07c4e04e/out/
   val_data:
     type: uri_folder
-    path: azureml:amazon_review_merged_features_val@latest
+    path: azureml://datastores/workspaceblobstore/paths/azureml/947dfede-cead-4e44-a0b0-ad81e61ce5d7/out/
   test_data:
     type: uri_folder
-    path: azureml:amazon_review_merged_features_test@latest
+    path: azureml://datastores/workspaceblobstore/paths/azureml/a05a2d3b-2540-42a2-8c3f-c150ac7606b7/out/
 
 outputs:
   model_output:

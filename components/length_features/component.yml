@@ -1,6 +1,6 @@
 $schema: https://azuremlschemas.azureedge.net/latest/commandComponent.schema.json
 name: length_features
-version: 2
+version: 3
 display_name: Review Length Features
 type: command
 

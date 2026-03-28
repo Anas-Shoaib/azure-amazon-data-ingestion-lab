@@ -30,8 +30,13 @@ def load_data(path):
     return pd.read_parquet(path)
 
 def create_labels(df):
+    # Handle column name variations from merge
     if "overall" not in df.columns:
-        raise RuntimeError("Column 'overall' is missing.")
+        overall_cols = [c for c in df.columns if "overall" in c.lower()]
+        if overall_cols:
+            df = df.rename(columns={overall_cols[0]: "overall"})
+        else:
+            raise RuntimeError(f"No overall column found. Columns: {list(df.columns)}")
     df = df.copy()
     df["label"] = (df["overall"] >= 4).astype(int)
     return df
