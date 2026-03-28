@@ -16,6 +16,7 @@ def parse_args():
     parser.add_argument("--output",     type=str, required=True)
     parser.add_argument("--C",        type=float, default=1.0)
     parser.add_argument("--max_iter", type=int,   default=1000)
+    parser.add_argument("--feature_mode", type=str, default="all", choices=["sbert_only", "sbert_tfidf", "all"])
     return parser.parse_args()
 
 NON_FEATURE_COLS = {
@@ -41,7 +42,7 @@ def create_labels(df):
     df["label"] = (df["overall"] >= 4).astype(int)
     return df
 
-def build_features(df):
+def build_features(df, feature_mode="all"):
     feature_parts = []
 
     if "sbert_vector" in df.columns:
@@ -52,28 +53,28 @@ def build_features(df):
         if sbert_cols:
             feature_parts.append(df[sbert_cols].values)
 
-    tfidf_cols = sorted([c for c in df.columns if c.startswith("tfidf_")])
-    if tfidf_cols:
-        feature_parts.append(df[tfidf_cols].values)
+    if feature_mode in ("sbert_tfidf", "all"):
+        tfidf_cols = sorted([c for c in df.columns if c.startswith("tfidf_")])
+        if tfidf_cols:
+            feature_parts.append(df[tfidf_cols].values)
 
-    sentiment_cols = [c for c in df.columns if "sentiment" in c.lower()]
-    if sentiment_cols:
-        feature_parts.append(df[sentiment_cols].values)
-
-    length_cols = [
-        c for c in df.columns
-        if c not in NON_FEATURE_COLS
-        and not c.startswith("sbert_")
-        and not c.startswith("tfidf_")
-        and "sentiment" not in c.lower()
-        and df[c].dtype in [np.float64, np.float32, np.int64, np.int32]
-    ]
-    if length_cols:
-        feature_parts.append(df[length_cols].values)
+    if feature_mode == "all":
+        sentiment_cols = [c for c in df.columns if "sentiment" in c.lower()]
+        if sentiment_cols:
+            feature_parts.append(df[sentiment_cols].values)
+        length_cols = [
+            c for c in df.columns
+            if c not in NON_FEATURE_COLS
+            and not c.startswith("sbert_")
+            and not c.startswith("tfidf_")
+            and "sentiment" not in c.lower()
+            and df[c].dtype in [np.float64, np.float32, np.int64, np.int32]
+        ]
+        if length_cols:
+            feature_parts.append(df[length_cols].values)
 
     if not feature_parts:
         raise RuntimeError("No feature columns found.")
-
     return np.hstack(feature_parts).astype(np.float32)
 
 def evaluate(model, X, y, split):
@@ -95,6 +96,7 @@ def main():
     args = parse_args()
     start_time = time.time()
     mlflow.start_run()
+    mlflow.log_param("feature_mode", args.feature_mode)
     mlflow.log_param("C",        args.C)
     mlflow.log_param("max_iter", args.max_iter)
 
@@ -104,9 +106,9 @@ def main():
     test_df  = create_labels(load_data(args.test_data))
 
     print("Building features...")
-    X_train = build_features(train_df)
-    X_val   = build_features(val_df)
-    X_test  = build_features(test_df)
+    X_train = build_features(train_df, args.feature_mode)
+    X_val   = build_features(val_df,   args.feature_mode)
+    X_test  = build_features(test_df,  args.feature_mode)
     y_train = train_df["label"].values
     y_val   = val_df["label"].values
     y_test  = test_df["label"].values

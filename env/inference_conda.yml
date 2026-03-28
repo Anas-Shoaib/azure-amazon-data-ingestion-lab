@@ -1,0 +1,15 @@
+name: amazon-review-inference-env
+
+channels:
+  - conda-forge
+
+dependencies:
+  - python=3.10
+  - pip
+  - pip:
+      - numpy>=1.23.0
+      - pandas>=1.5.0
+      - pyarrow>=10.0.0
+      - scikit-learn>=1.2.0
+      - joblib>=1.2.0
+      - azureml-defaults>=1.48.0

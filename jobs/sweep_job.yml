@@ -1,0 +1,55 @@
+$schema: https://azuremlschemas.azureedge.net/latest/sweepJob.schema.json
+type: sweep
+
+display_name: amazon_review_sweep
+experiment_name: amazon_review_training_experiment
+
+trial:
+  code: ../src
+  command: >
+    python train.py
+    --train_data ${{inputs.train_data}}/data.parquet
+    --val_data   ${{inputs.val_data}}/data.parquet
+    --test_data  ${{inputs.test_data}}/data.parquet
+    --output     ${{outputs.model_output}}
+    --C          ${{search_space.C}}
+    --max_iter   ${{search_space.max_iter}}
+  environment:
+    image: mcr.microsoft.com/azureml/openmpi4.1.0-ubuntu20.04
+    conda_file: ../env/conda.yml
+
+inputs:
+  train_data:
+    type: uri_folder
+    path: azureml://datastores/workspaceblobstore/paths/azureml/190c5ce8-380c-46c5-8427-02dd07c4e04e/out/
+  val_data:
+    type: uri_folder
+    path: azureml://datastores/workspaceblobstore/paths/azureml/947dfede-cead-4e44-a0b0-ad81e61ce5d7/out/
+  test_data:
+    type: uri_folder
+    path: azureml://datastores/workspaceblobstore/paths/azureml/a05a2d3b-2540-42a2-8c3f-c150ac7606b7/out/
+
+outputs:
+  model_output:
+    type: uri_folder
+
+compute: azureml:lab02VM
+
+sampling_algorithm: random
+
+search_space:
+  C:
+    type: uniform
+    min_value: 0.01
+    max_value: 10.0
+  max_iter:
+    type: choice
+    values: [500, 1000, 2000]
+
+objective:
+  primary_metric: val_accuracy
+  goal: maximize
+
+limits:
+  max_total_trials: 6
+  max_concurrent_trials: 2

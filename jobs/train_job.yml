@@ -12,6 +12,7 @@ command: >
   --val_data   ${{inputs.val_data}}/data.parquet
   --test_data  ${{inputs.test_data}}/data.parquet
   --output     ${{outputs.model_output}}
+  --feature_mode all
 
 inputs:
   train_data:
