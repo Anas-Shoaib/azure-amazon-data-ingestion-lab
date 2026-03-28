@@ -43,10 +43,10 @@ def main():
     df["sentiment_neu"] = scores.apply(lambda x: x["neu"])
     df["sentiment_compound"] = scores.apply(lambda x: x["compound"])
 
-    out_df = df[[
-        "asin", "reviewerID",
-        "sentiment_pos", "sentiment_neg", "sentiment_neu", "sentiment_compound"
-    ]]
+    cols = ["asin", "reviewerID", "sentiment_pos", "sentiment_neg", "sentiment_neu", "sentiment_compound"]
+    if "overall" in df.columns:
+        cols = ["asin", "reviewerID", "overall", "sentiment_pos", "sentiment_neg", "sentiment_neu", "sentiment_compound"]
+    out_df = df[cols]
 
     os.makedirs(args.out, exist_ok=True)
     out_df.to_parquet(os.path.join(args.out, "data.parquet"), index=False)
