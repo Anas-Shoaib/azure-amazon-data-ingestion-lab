@@ -8,72 +8,72 @@ inputs:
 jobs:
   split:
     type: command
-    component: azureml:split_dataset:3
+    component: azureml:split_dataset@3
     inputs:
       data: ${{parent.inputs.sampled_data}}
   normalize_train:
     type: command
-    component: azureml:normalize_text:@latest
+    component: azureml:normalize_text@2
     inputs:
       data: ${{parent.jobs.split.outputs.train}}
   normalize_val:
     type: command
-    component: azureml:normalize_text:@latest
+    component: azureml:normalize_text@2
     inputs:
       data: ${{parent.jobs.split.outputs.val}}
   normalize_test:
     type: command
-    component: azureml:normalize_text:@latest
+    component: azureml:normalize_text@2
     inputs:
       data: ${{parent.jobs.split.outputs.test}}
   normalize_deploy:
     type: command
-    component: azureml:normalize_text:@latest
+    component: azureml:normalize_text@2
     inputs:
       data: ${{parent.jobs.split.outputs.deploy}}
   length_train:
     type: command
-    component: azureml:length_features:@latest
+    component: azureml:length_features@latest
     inputs:
       data: ${{parent.jobs.normalize_train.outputs.out}}
   length_val:
     type: command
-    component: azureml:length_features:@latest
+    component: azureml:length_features@latest
     inputs:
       data: ${{parent.jobs.normalize_val.outputs.out}}
   length_test:
     type: command
-    component: azureml:length_features:@latest
+    component: azureml:length_features@latest
     inputs:
       data: ${{parent.jobs.normalize_test.outputs.out}}
   length_deploy:
     type: command
-    component: azureml:length_features:@latest
+    component: azureml:length_features@latest
     inputs:
       data: ${{parent.jobs.normalize_deploy.outputs.out}}
   sentiment_train:
     type: command
-    component: azureml:sentiment_features:@latest
+    component: azureml:sentiment_features@latest
     inputs:
       data: ${{parent.jobs.normalize_train.outputs.out}}
   sentiment_val:
     type: command
-    component: azureml:sentiment_features:@latest
+    component: azureml:sentiment_features@latest
     inputs:
       data: ${{parent.jobs.normalize_val.outputs.out}}
   sentiment_test:
     type: command
-    component: azureml:sentiment_features:@latest
+    component: azureml:sentiment_features@latest
     inputs:
       data: ${{parent.jobs.normalize_test.outputs.out}}
   sentiment_deploy:
     type: command
-    component: azureml:sentiment_features:@latest
+    component: azureml:sentiment_features@latest
     inputs:
       data: ${{parent.jobs.normalize_deploy.outputs.out}}
   tfidf:
     type: command
-    component: azureml:tfidf_features:@latest
+    component: azureml:tfidf_features@latest
     inputs:
       train: ${{parent.jobs.normalize_train.outputs.out}}
       val: ${{parent.jobs.normalize_val.outputs.out}}
@@ -81,28 +81,28 @@ jobs:
       max_features: 500
   sbert_train:
     type: command
-    component: azureml:sbert_embeddings:@latest
+    component: azureml:sbert_embeddings@latest
     inputs:
       data: ${{parent.jobs.normalize_train.outputs.out}}
   sbert_val:
     type: command
-    component: azureml:sbert_embeddings:@latest
+    component: azureml:sbert_embeddings@latest
     inputs:
       data: ${{parent.jobs.normalize_val.outputs.out}}
   sbert_test:
     type: command
-    component: azureml:sbert_embeddings:@latest
+    component: azureml:sbert_embeddings@latest
     inputs:
       data: ${{parent.jobs.normalize_test.outputs.out}}
   sbert_deploy:
     type: command
-    component: azureml:sbert_embeddings:@latest
+    component: azureml:sbert_embeddings@latest
     inputs:
       data: ${{parent.jobs.normalize_deploy.outputs.out}}
   merge_train:
     type: command
     compute: azureml:mergeOnlyCompute
-    component: azureml:merge_features:@latest
+    component: azureml:merge_features@latest
     inputs:
       length: ${{parent.jobs.length_train.outputs.out}}
       sentiment: ${{parent.jobs.sentiment_train.outputs.out}}
@@ -111,7 +111,7 @@ jobs:
   merge_val:
     type: command
     compute: azureml:mergeOnlyCompute
-    component: azureml:merge_features:@latest
+    component: azureml:merge_features@latest
     inputs:
       length: ${{parent.jobs.length_val.outputs.out}}
       sentiment: ${{parent.jobs.sentiment_val.outputs.out}}
@@ -120,7 +120,7 @@ jobs:
   merge_test:
     type: command
     compute: azureml:mergeOnlyCompute
-    component: azureml:merge_features:@latest
+    component: azureml:merge_features@latest
     inputs:
       length: ${{parent.jobs.length_test.outputs.out}}
       sentiment: ${{parent.jobs.sentiment_test.outputs.out}}
@@ -129,7 +129,7 @@ jobs:
   merge_deploy:
     type: command
     compute: azureml:mergeOnlyCompute
-    component: azureml:merge_features:@latest
+    component: azureml:merge_features@latest
     inputs:
       length: ${{parent.jobs.length_deploy.outputs.out}}
       sentiment: ${{parent.jobs.sentiment_deploy.outputs.out}}
