@@ -30,7 +30,10 @@ def main():
     df["review_length_words"] = df["reviewText"].apply(lambda x: len(str(x).split()))
     df["review_length_chars"] = df["reviewText"].apply(lambda x: len(str(x)))
 
-    out_df = df[["asin", "reviewerID", "review_length_words", "review_length_chars"]]
+    cols = ["asin", "reviewerID", "review_length_words", "review_length_chars"]
+    if "overall" in df.columns:
+        cols = ["asin", "reviewerID", "overall", "review_length_words", "review_length_chars"]
+    out_df = df[cols]
 
     os.makedirs(args.out, exist_ok=True)
     out_df.to_parquet(os.path.join(args.out, "data.parquet"), index=False)

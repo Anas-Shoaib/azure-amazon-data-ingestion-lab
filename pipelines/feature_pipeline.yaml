@@ -8,27 +8,27 @@ inputs:
 jobs:
   split:
     type: command
-    component: azureml:split_dataset@latest
+    component: azureml:split_dataset@3
     inputs:
       data: ${{parent.inputs.sampled_data}}
   normalize_train:
     type: command
-    component: azureml:normalize_text@latest
+    component: azureml:normalize_text@2
     inputs:
       data: ${{parent.jobs.split.outputs.train}}
   normalize_val:
     type: command
-    component: azureml:normalize_text@latest
+    component: azureml:normalize_text@2
     inputs:
       data: ${{parent.jobs.split.outputs.val}}
   normalize_test:
     type: command
-    component: azureml:normalize_text@latest
+    component: azureml:normalize_text@2
     inputs:
       data: ${{parent.jobs.split.outputs.test}}
   normalize_deploy:
     type: command
-    component: azureml:normalize_text@latest
+    component: azureml:normalize_text@2
     inputs:
       data: ${{parent.jobs.split.outputs.deploy}}
   length_train:
