@@ -8,7 +8,7 @@ inputs:
 jobs:
   split:
     type: command
-    component: azureml:split_dataset:@latest
+    component: azureml:split_dataset:3
     inputs:
       data: ${{parent.inputs.sampled_data}}
   normalize_train:
