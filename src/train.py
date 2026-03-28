@@ -14,8 +14,8 @@ def parse_args():
     parser.add_argument("--val_data",   type=str, required=True)
     parser.add_argument("--test_data",  type=str, required=True)
     parser.add_argument("--output",     type=str, required=True)
-    parser.add_argument("--C",        type=float, default=1.0)
-    parser.add_argument("--max_iter", type=int,   default=1000)
+    parser.add_argument("--C",        type=float, default=1.667)
+    parser.add_argument("--max_iter", type=int,   default=500)
     parser.add_argument("--feature_mode", type=str, default="all", choices=["sbert_only", "sbert_tfidf", "all"])
     return parser.parse_args()
 
