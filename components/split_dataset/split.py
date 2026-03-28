@@ -7,11 +7,10 @@ def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument("--data", type=str, required=True)
     p.add_argument("--seed", type=int, default=42)
-    p.add_argument("--train_ratio", type=float, default=0.7)
-    p.add_argument("--val_ratio", type=float, default=0.15)
-    p.add_argument("--train_out", type=str, required=True)
-    p.add_argument("--val_out", type=str, required=True)
-    p.add_argument("--test_out", type=str, required=True)
+    p.add_argument("--train_out",  type=str, required=True)
+    p.add_argument("--val_out",    type=str, required=True)
+    p.add_argument("--test_out",   type=str, required=True)
+    p.add_argument("--deploy_out", type=str, required=True)
     return p.parse_args()
 
 def list_parquet_files(folder):
@@ -22,44 +21,32 @@ def list_parquet_files(folder):
                 files.append(os.path.join(root, n))
     return files
 
-def load_folder(folder):
-    files = list_parquet_files(folder)
-    if len(files) == 0:
-        raise ValueError(f"No parquet files found under: {folder}")
-    return pd.concat([pd.read_parquet(f) for f in files], ignore_index=True)
-
 def main():
     args = parse_args()
-    df = load_folder(args.data)
+    files = list_parquet_files(args.data)
+    df = pd.concat([pd.read_parquet(f) for f in files], ignore_index=True)
     print(f"Loaded {len(df)} rows")
 
-    train_df, temp_df = train_test_split(
-        df,
-        test_size=(1 - args.train_ratio),
-        random_state=args.seed,
-        shuffle=True
-    )
+    # Deploy split = most recent 10% by review_year
+    if "review_year" in df.columns:
+        df = df.sort_values("review_year").reset_index(drop=True)
+    n = len(df)
+    deploy_df = df.iloc[int(n * 0.90):]
+    rest_df   = df.iloc[:int(n * 0.90)]
 
-    val_size = args.val_ratio / (1 - args.train_ratio)
+    # Split rest into train 60%, val 15%, test 15% (of total = 67/17/17 of rest)
+    train_df, temp_df = train_test_split(rest_df, test_size=0.333, random_state=args.seed)
+    val_df, test_df   = train_test_split(temp_df, test_size=0.5,   random_state=args.seed)
 
-    val_df, test_df = train_test_split(
-        temp_df,
-        test_size=(1 - val_size),
-        random_state=args.seed,
-        shuffle=True
-    )
-
-    os.makedirs(args.train_out, exist_ok=True)
-    os.makedirs(args.val_out, exist_ok=True)
-    os.makedirs(args.test_out, exist_ok=True)
-
-    train_df.to_parquet(os.path.join(args.train_out, "data.parquet"), index=False)
-    val_df.to_parquet(os.path.join(args.val_out, "data.parquet"), index=False)
-    test_df.to_parquet(os.path.join(args.test_out, "data.parquet"), index=False)
-
-    print("Train rows:", len(train_df))
-    print("Validation rows:", len(val_df))
-    print("Test rows:", len(test_df))
+    for out, split_df, name in [
+        (args.train_out,  train_df,  "train"),
+        (args.val_out,    val_df,    "val"),
+        (args.test_out,   test_df,   "test"),
+        (args.deploy_out, deploy_df, "deploy"),
+    ]:
+        os.makedirs(out, exist_ok=True)
+        split_df.to_parquet(os.path.join(out, "data.parquet"), index=False)
+        print(f"{name} rows: {len(split_df)}")
 
 if __name__ == "__main__":
     main()
