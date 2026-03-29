@@ -50,6 +50,8 @@ def build_features(df, feature_mode="all"):
     else:
         sbert_cols = sorted([c for c in df.columns if c.startswith("sbert_")],
                             key=lambda x: int(x.split("_")[1]))
+        if not sbert_cols:
+            sbert_cols = [c for c in df.columns if "sbert" in c.lower() or "embedding" in c.lower()]
         if sbert_cols:
             feature_parts.append(df[sbert_cols].values)
 

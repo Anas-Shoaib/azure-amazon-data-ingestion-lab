@@ -15,9 +15,12 @@ NON_FEATURE_COLS = {
 def init():
     global model
     model_dir = os.environ.get("AZUREML_MODEL_DIR", ".")
-    model_path = os.path.join(model_dir, "model.pkl")
+    # model is stored in model_output subfolder
+    model_path = os.path.join(model_dir, "model_output", "model.pkl")
+    if not os.path.exists(model_path):
+        model_path = os.path.join(model_dir, "model.pkl")
     model = joblib.load(model_path)
-    print("Model loaded.")
+    print(f"Model loaded from {model_path}")
 
 def build_features(df):
     feature_parts = []

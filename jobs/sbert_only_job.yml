@@ -1,0 +1,36 @@
+$schema: https://azuremlschemas.azureedge.net/latest/commandJob.schema.json
+type: command
+
+display_name: amazon_review_sbert_only
+experiment_name: amazon_review_training_experiment
+
+code: ../src
+
+command: >
+  python train.py
+  --train_data ${{inputs.train_data}}/data.parquet
+  --val_data   ${{inputs.val_data}}/data.parquet
+  --test_data  ${{inputs.test_data}}/data.parquet
+  --output     ${{outputs.model_output}}
+  --feature_mode sbert_only
+
+inputs:
+  train_data:
+    type: uri_folder
+    path: azureml://datastores/workspaceblobstore/paths/azureml/190c5ce8-380c-46c5-8427-02dd07c4e04e/out/
+  val_data:
+    type: uri_folder
+    path: azureml://datastores/workspaceblobstore/paths/azureml/947dfede-cead-4e44-a0b0-ad81e61ce5d7/out/
+  test_data:
+    type: uri_folder
+    path: azureml://datastores/workspaceblobstore/paths/azureml/a05a2d3b-2540-42a2-8c3f-c150ac7606b7/out/
+
+outputs:
+  model_output:
+    type: uri_folder
+
+environment:
+  image: mcr.microsoft.com/azureml/openmpi4.1.0-ubuntu20.04
+  conda_file: ../env/conda.yml
+
+compute: azureml:lab02VM

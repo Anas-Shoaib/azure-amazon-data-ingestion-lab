@@ -636,3 +636,219 @@ Together these uniquely identify each review in the dataset.
 - Storage account keys should never be committed to GitHub. Use environment variables or Azure Key Vault.
 - The TF-IDF vectorizer must always be fit on training data only to prevent leakage.
 - SBERT and Sentiment feature extraction require additional Python packages (installed via pip in the component command or via a custom environment if needed).
+
+
+# Assignment 2 – Azure ML Pipeline: Amazon Review Sentiment
+
+**Course:** DSAI3202  
+**Student:** Anas Shoaib (60104434)  
+**Workspace:** `Amazon-Electronics-Lab-60104434`  
+**Resource Group:** `rg-60104434`  
+**Subscription:** `UDST-CCIT-DSAI3202-3`  
+**Branch:** `assignment2_model_training`
+
+---
+
+## Overview
+
+This assignment builds an end-to-end Azure ML pipeline for training a sentiment classification model on the Amazon Electronics review dataset. It covers data asset registration, model training, hyperparameter sweeping, feature experimentation, model registration, online endpoint deployment, and live inference.
+
+The model classifies reviews as **positive (1)** if `overall >= 4`, and **negative (0)** otherwise.
+
+---
+
+## Repository Structure
+
+```
+├── src/
+│   ├── train.py               # Training script (feature engineering + LogisticRegression)
+│   ├── score.py               # Scoring script for online endpoint
+│   └── invoke_endpoint.py     # Local script to call deployed endpoint and evaluate
+├── env/
+│   ├── conda.yml              # Training environment
+│   └── inference_conda.yml    # Inference environment
+├── jobs/
+│   ├── train_job.yml          # Manual training job config
+│   ├── sweep_job.yml          # Hyperparameter sweep config
+│   └── deployment.yml         # Online deployment config
+├── azure-pipelines.yml        # Azure DevOps CI/CD pipeline
+└── data/
+    └── deploy/                # Downloaded deploy split (local parquet)
+```
+
+---
+
+## Data Assets
+
+Four splits registered in Azure ML (version 2, with `overall` column):
+
+| Split  | Asset ID Prefix | Size  | Purpose                        |
+|--------|-----------------|-------|--------------------------------|
+| Train  | `190c5ce8`      | 60%   | Model training                 |
+| Val    | `947dfede`      | 15%   | Validation during training     |
+| Test   | `a05a2d3b`      | 15%   | Final held-out evaluation      |
+| Deploy | `5fb84b3b`      | 10%   | Live inference (most recent year) |
+
+The deploy split was created from the **most recent `review_year`** to simulate real-world deployment on unseen temporal data.
+
+---
+
+## Feature Engineering
+
+Features are built in `build_features()` inside `train.py` and `invoke_endpoint.py`:
+
+- **SBERT embeddings** — 768-dim sentence embeddings (`sbert_0` … `sbert_767`)
+- **TF-IDF features** — sparse bag-of-words representation (`tfidf_*`)
+- **Sentiment scores** — any column containing `"sentiment"`
+- **Length/numeric features** — remaining numeric columns (e.g. review length, word count)
+
+All parts are horizontally stacked into a single float32 feature matrix.
+
+---
+
+## Training Jobs
+
+### Manual Training Job
+- **Job name:** `zen_book_gtnz555f4g`
+- **Model:** Logistic Regression
+- **Val Accuracy:** 76.4%
+
+### Hyperparameter Sweep
+- **Job name:** `brave_planet_lryvyhhkw5`
+- **Search space:** `C` (regularization), `max_iter`
+- **Best config:** `C=1.667`, `max_iter=500`
+
+### Feature Experiments
+
+| Experiment    | Job                        | Status | Notes                            |
+|---------------|----------------------------|--------|----------------------------------|
+| `all`         | completed                  | ✅     | All features combined            |
+| `sbert_tfidf` | completed                  | ✅     | SBERT + TF-IDF only              |
+| `sbert_only`  | failed                     | ❌     | Indentation bug in `build_features` |
+
+> **`sbert_only` failure:** An indentation error in the `build_features` function caused the feature assembly block to fall outside the conditional scope, resulting in an empty feature matrix and a crashed job. Fix: correct the indentation so the SBERT-only path returns only `sbert_*` columns.
+
+---
+
+## Model Registration
+
+- **Model name:** `amazon-review-sentiment-model`
+- **Version:** 1
+- **Registered from job:** `quirky_oyster_m8cbdxrptj`
+
+---
+
+## Deployment
+
+- **Endpoint name:** `amazon-review-endpoint`
+- **Deployment name:** `amazon-review-deployment`
+- **Region:** Qatar Central
+- **Scoring URL:** `https://amazon-review-endpoint.qatarcentral.inference.ml.azure.com/score`
+- **Auth mode:** Key
+
+### Deployment Results (via `invoke_endpoint.py`)
+
+| Metric   | Value  |
+|----------|--------|
+| Samples  | 90     |
+| Accuracy | 78.89% |
+| F1 Score | 88.20% |
+
+The endpoint was deleted after successful invocation to avoid ongoing compute costs:
+
+```bash
+az ml online-endpoint delete --name amazon-review-endpoint --yes \
+  --resource-group rg-60104434 \
+  --workspace-name Amazon-Electronics-Lab-60104434
+```
+
+---
+
+## Issues Encountered & Fixes
+
+### 1. SSL Handshake Failure (`invoke_endpoint.py`)
+**Error:** `SSLEOFError: EOF occurred in violation of protocol`  
+**Cause:** TLS negotiation dropped — likely a Python 3.12 / urllib3 compatibility issue with the Azure ML endpoint's SSL configuration.  
+**Fix:** Used a `requests.Session` with `verify=False` and suppressed the `InsecureRequestWarning` via `urllib3.disable_warnings()`.
+
+### 2. Zero Traffic on Endpoint
+**Error:** Endpoint returned no response / SSL drop  
+**Cause:** Deployment was created but traffic was not routed to it (`"amazon-review-deployment": 0`).  
+**Fix:**
+```bash
+az ml online-endpoint update --name amazon-review-endpoint \
+  --traffic "amazon-review-deployment=100" \
+  --resource-group rg-60104434 \
+  --workspace-name Amazon-Electronics-Lab-60104434
+```
+
+### 3. Feature Count Mismatch (890 vs 891)
+**Error:** `X has 890 features, but LogisticRegression is expecting 891 features as input.`  
+**Cause:** The deploy parquet was missing one column compared to the training data, resulting in a feature matrix one column short.  
+**Fix:** Added a padding step in `invoke_endpoint.py` after building features:
+```python
+expected_features = 891
+if X.shape[1] < expected_features:
+    pad = np.zeros((X.shape[0], expected_features - X.shape[1]), dtype=np.float32)
+    X = np.hstack([X, pad])
+```
+
+### 4. `sbert_only` Experiment Crash
+**Error:** Job failed during feature assembly  
+**Cause:** Indentation bug in `build_features` — the SBERT-only return path was not correctly scoped.  
+**Status:** Identified, fix pending before final push.
+
+### 5. Azure DevOps Pipeline
+**Status:** Blocked — could not access the course Azure DevOps organization. Waiting on TA to provide the org URL and project access.
+
+---
+
+## Bonus: Data Leakage Analysis
+
+**Issue:** TF-IDF was fit on the **full dataset** before the train/val/test/deploy split was applied.
+
+**Why this is a problem:**  
+When `TfidfVectorizer.fit()` sees all rows, it learns vocabulary and IDF weights from val, test, and deploy samples. This leaks information from future/unseen data into the training representation, artificially inflating performance metrics — the model has implicitly "seen" the vocabulary of reviews it should treat as unseen.
+
+**Correct approach:**
+```python
+vectorizer = TfidfVectorizer()
+vectorizer.fit(train_df["reviewText"])          # fit ONLY on train
+train_tfidf = vectorizer.transform(train_df["reviewText"])
+val_tfidf   = vectorizer.transform(val_df["reviewText"])
+test_tfidf  = vectorizer.transform(test_df["reviewText"])
+deploy_tfidf = vectorizer.transform(deploy_df["reviewText"])
+```
+
+This ensures IDF weights reflect only training distribution, and unknown words in val/test/deploy are correctly handled as out-of-vocabulary.
+
+---
+
+## How to Run
+
+### Training Job
+```bash
+az ml job create -f jobs/train_job.yml \
+  --resource-group rg-60104434 \
+  --workspace-name Amazon-Electronics-Lab-60104434
+```
+
+### Hyperparameter Sweep
+```bash
+az ml job create -f jobs/sweep_job.yml \
+  --resource-group rg-60104434 \
+  --workspace-name Amazon-Electronics-Lab-60104434
+```
+
+### Invoke Endpoint (after deployment)
+```bash
+python src/invoke_endpoint.py
+```
+
+---
+
+## Compute
+
+- **Cluster:** `lab02VM`
+- **Storage account:** `amazonelectron7558347768`
+- **Blob container:** `azureml-blobstore-aff790f3-a734-43eb-b614-0bf6704a6e30`
