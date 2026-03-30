@@ -33,4 +33,6 @@ environment:
   image: mcr.microsoft.com/azureml/openmpi4.1.0-ubuntu20.04
   conda_file: ../env/conda.yml
 
-compute: azureml:lab02VM
+resources:
+  instance_type: Standard_DS3_v2
+  instance_count: 1
